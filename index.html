@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kalender Kadaluarsa</title>
+
+  <!-- FullCalendar -->
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+  <!-- SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@5/dark.css" rel="stylesheet">
+
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; margin: 0; }
+    #calendar { max-width: 900px; margin: 30px auto; background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    .fc-daygrid-event { display: block !important; white-space: normal !important; }
+    .fc-event.expired { background-color: red !important; color: white !important; }
+    .fc-event.near-expired { background-color: orange !important; color: white !important; }
+    .fc-event.safe { background-color: green !important; color: white !important; }
+    .controls { text-align: center; margin-bottom: 20px; }
+    .btn { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; }
+    .btn:hover { background: #0056b3; }
+    .loading { text-align: center; color: #666; }
+  </style>
+</head>
+<body>
+  <h2 style="text-align:center">📅 Kalender Tanggal Kadaluarsa</h2>
+  <div class="controls">
+    <a href="jadwal_kalender.xlsx" id="excelLink" class="btn" download>Unduh File Excel</a>
+    <button id="showDataBtn" class="btn" style="display:none;">Tampilkan Data Excel</button>
+    <input type="file" id="fileUpload" accept=".xlsx,.xls" style="display:none;">
+    <button id="uploadBtn" class="btn">Upload File Excel (Jika Fetch Gagal)</button>
+  </div>
+  <div id="loading" class="loading" style="display:none;">Memuat data Excel...</div>
+  <div id="calendar"></div>
+
+  <script>
+    const excelUrl = document.getElementById("excelLink").href;
+    let calendar;
+    const eventsData = {}; // { tanggal: [items] }
+    const allExcelData = []; // Untuk tampilkan semua data
+
+    // Minta izin notifikasi sistem
+    if ("Notification" in window && Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+
+    // Fungsi untuk tampilkan notifikasi desktop
+    function showSystemNotification(title, body, icon = 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png') {
+      if ("Notification" in window && Notification.permission === "granted") {
+        const notif = new Notification(title, {
+          body: body,
+          icon: icon,
+          tag: 'expiration-notif' // Hindari duplikat
+        });
+        notif.onclick = () => { window.focus(); };
+        // Auto close setelah 10 detik
+        setTimeout(() => notif.close(), 10000);
+      }
+    }
+
+    // Fungsi untuk tampilkan data Excel lengkap di modal
+    function showAllExcelData() {
+      if (allExcelData.length === 0) {
+        Swal.fire({
+          title: 'Data Kosong',
+          text: 'Belum ada data Excel yang dimuat.',
+          icon: 'info',
+          background: '#222',
+          color: '#fff'
+        });
+        return;
+      }
+
+      let html = '<table style="width:100%; border-collapse: collapse; color: white;"><tr style="background: #333;"><th>PT</th><th>Lokasi</th><th>Tanggal</th><th>Item</th></tr>';
+      allExcelData.forEach(row => {
+        html += `<tr style="border: 1px solid #555;"><td>${row.pt}</td><td>${row.lokasi}</td><td>${row.tanggal}</td><td>${row.item}</td></tr>`;
+      });
+      html += '</table>';
+
+      Swal.fire({
+        title: 'Isi Data Excel',
+        html: html,
+        icon: 'info',
+        confirmButtonText: 'Tutup',
+        background: '#222',
+        color: '#fff',
+        width: '90%',
+        scrollbarPadding: false
+      });
+    }
+
+    // Fungsi untuk proses data Excel (dari fetch atau upload)
+    function processExcelData(buffer) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('showDataBtn').style.display = 'inline-block';
+
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const allEvents = [];
+      const peringatanHariIni = []; // Untuk notif hari ini/besok
+      const peringatanDekat = {}; // { [namaPT]: { ... } }
+
+      workbook.SheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        const lokasiPT = jsonData[0]?.[0] || "Lokasi tidak diketahui";
+        for (let i = 1; i < jsonData.length; i++) { // Mulai dari index 1 (skip lokasi)
+          const row = jsonData[i];
+          if (!row || !row[0]) continue; // Skip baris kosong
+
+          const tanggalVal = row[0];
+          const parts = [];
+          for (let j = 1; j <= 12; j++) {
+            if (row[j]) parts.push(row[j]);
+          }
+          const item = parts.join(" - ");
+          if (!item || !tanggalVal) continue;
+
+          let tanggal;
+          if (typeof tanggalVal === "number") {
+            const t = XLSX.SSF.parse_date_code(tanggalVal);
+            tanggal = new Date(t.y, t.m - 1, t.d);
+          } else {
+            tanggal = new Date(tanggalVal);
+            if (isNaN(tanggal)) {
+              const partsDate = String(tanggalVal).split(/[\/\-]/);
+              if (partsDate.length === 3) {
+                // Coba DD/MM/YYYY atau MM/DD/YYYY
+                tanggal = new Date(partsDate[2], partsDate[1] - 1, partsDate[0]);
+                if (isNaN(tanggal)) tanggal = new Date(partsDate[2], partsDate[0] - 1, partsDate[1]);
+              }
+            }
+          }
+
+          if (isNaN(tanggal)) continue;
+          tanggal.setHours(12, 0, 0, 0);
+
+          const formattedDate = tanggal.toISOString().split("T")[0];
+          const diffTime = tanggal.getTime() - today.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+          let eventClass = 'safe';
+          if (diffDays <= 0) eventClass = 'expired';
+          else if (diffDays <= 3) eventClass = 'near-expired';
+
+          if (!eventsData[formattedDate]) eventsData[formattedDate] = [];
+          eventsData[formattedDate].push(item);
+
+          allEvents.push({
+            title: item,
+            start: formattedDate,
+            allDay: true,
+            classNames: [eventClass],
+            extendedProps: { pt: sheetName, lokasi: lokasiPT }
+          });
+
+          // Simpan untuk tampilan data lengkap
+          allExcelData.push({
+            pt: sheetName,
+            lokasi: lokasiPT,
+            tanggal: formattedDate,
+            item: item
+          });
+
+          // Cek untuk notifikasi dekat kadaluarsa
+          if (diffDays >= 0 && diffDays <= 3) {
+            if (!peringatanDekat[sheetName]) {
+              peringatanDekat[sheetName] = {
+                jumlah: 0,
+                tanggal: new Set(),
+                lokasi: lokasiPT,
+                items: []
+              };
+            }
+            peringatanDekat[sheetName].jumlah += 1;
+            peringatanDekat[sheetName].tanggal.add(formattedDate);
+            peringatanDekat[sheetName].items.push({ tanggal: formattedDate, item: item });
+
+            // Khusus untuk hari ini atau besok
+            if (diffDays <= 1) {
+              peringatanHariIni.push({ pt: sheetName, lokasi: lokasiPT, tanggal: formattedDate, item: item });
+            }
+          }
+        }
+      });
+
+      // Render kalender
+      calendar.removeAllEvents();
+      calendar.addEventSource(allEvents);
+
+      // Notifikasi pertama: Item dekat kadaluarsa
+      if (Object.keys(peringatanDekat).length > 0) {
+        let combinedHTML = Object.entries(peringatanDekat).map(([namaPT, data]) => {
+          return `
+            <strong>PT: ${namaPT}</strong> | Lokasi: ${data.lokasi}<br>
+            Jumlah Item: ${data.jumlah}<br>
+            Tanggal: ${[...data.tanggal].join(', ')}<br>
+            <hr style="border: 0.5px solid #555;">
+          `;
+        }).join('');
+
+        Swal.fire({
+          title: '⚠ Peringatan Kadaluarsa!',
+          html: combinedHTML,
+          icon: 'warning',
+          background: '#222',
+          color: '#fff',
+          allowOutsideClick: false,
+          confirmButtonText: 'Saya Mengerti'
+        });
+
+        // Notif sistem
+        const totalItem = Object.values(peringatanDekat).reduce((sum, data) => sum + data.jumlah, 0);
+        showSystemNotification("⚠ Peringatan Kadaluarsa!", `Terdapat ${totalItem} item dari beberapa PT yang akan/ telah kadaluarsa dalam 3 hari ke depan.`);
+      }
+
+      // Notifikasi spesifik untuk hari ini/besok
+      if (peringatanHariIni.length > 0) {
+        let hariIniHTML = peringatanHariIni.map(item => `• ${item.item} (${item.tanggal}) - ${item.pt}`).join('<br>');
+        Swal.fire({
+          title: `🚨 Notifikasi Hari Ini/Besok: ${peringatanHariIni.length} Item`,
+          html: hariIniHTML,
+          icon: 'error',
+          background: '#222',
+          color: '#fff',
+          confirmButtonText: 'OK'
+        });
+        showSystemNotification("🚨 Kadaluarsa Hari Ini!", peringatanHariIni.map(i => `${i.item} di ${i.pt}`).join('\n'));
+      }
+
+      // Notifikasi harian (cek ulang setiap 24 jam)
+      setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        // Re-run logika notif (simplified, bisa panggil fungsi checkNotif() jika perlu)
+        location.reload(); // Atau implementasikan re-check tanpa reload
+      }, 24 * 60 * 60 * 1000); // 24 jam
+    }
+
+    // Event listener
+    document.addEventListener('DOMContentLoaded', function () {
+      const calendarEl = document.getElementById('calendar');
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'id',
+        headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+        dateClick: function (info) {
+          const clickedDate = info.dateStr;
+          if (eventsData[clickedDate]) {
+            Swal.fire({
+              title: `Tanggal: ${clickedDate}`,
+              html: eventsData[clickedDate].map(item => `• ${item}`).join('<br>'),
+              icon: 'info',
+              confirmButtonText: 'Tutup',
+              background: '#222',
+              color: '#fff'
+            });
+          }
+        },
+        events: []
+      });
+      calendar.render();
+
+      // Tombol tampilkan data
+      document.getElementById('showDataBtn').addEventListener('click', showAllExcelData);
+
+      // Tombol upload
+      document.getElementById('uploadBtn').addEventListener('click', () => {
+        document.getElementById('fileUpload').click();
+      });
+      document.getElementById('fileUpload').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => processExcelData(e.target.result);
+          reader.readAsArrayBuffer(file);
+        }
+      });
+
+      // Coba fetch Excel
+      document.getElementById('loading').style.display = 'block';
+      fetch(excelUrl)
+        .then(res => {
+          if (!res.ok) throw new Error('File tidak ditemukan');
+          return res.arrayBuffer();
+        })
+        .then(buffer => processExcelData(buffer))
+        .catch(err => {
+          document.getElementById('loading').style.display = 'none';
+          Swal.fire({
+            title: 'Error Fetch',
+            text: 'Gagal memuat file Excel. Gunakan tombol upload.',
+            icon: 'error',
+            background: '#222',
+            color: '#fff'
+          });
+          console.error(err);
+        });
+    });
+  </script>
+</body>
+</html>
