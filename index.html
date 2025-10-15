@@ -72,19 +72,21 @@
                 <th style="padding: 12px; text-align: left; width: 20%; min-width: 100px; line-height: 1.5;">PT</th>
                 <th style="padding: 12px; text-align: left; width: 25%; min-width: 120px; line-height: 1.5;">Lokasi</th>
                 <th style="padding: 12px; text-align: left; width: 15%; min-width: 80px; line-height: 1.5;">Tanggal</th>
-                <th style="padding: 12px; text-align: left; width: 40%; min-width: 150px; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.5;">Item</th>
+                <th style="padding: 12px; text-align: left; width: 40%; min-width: 150px; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.5;">Item (Semua Kolom)</th>
               </tr>
             </thead>
             <tbody>
       `;
 
       allExcelData.forEach(row => {
+        // Gabungkan semua kolom item
+        const allItems = row.item ? row.item.join(' - ') : 'Tidak ada item';  // Asumsi row.item adalah array dari semua kolom
         html += `
           <tr style="border: 1px solid #555; min-height: 40px;">
             <td style="padding: 12px; text-align: left; word-wrap: break-word;">${row.pt}</td>
             <td style="padding: 12px; text-align: left; word-wrap: break-word;">${row.lokasi}</td>
             <td style="padding: 12px; text-align: left;">${row.tanggal}</td>
-            <td style="padding: 12px; text-align: left; word-wrap: break-word; overflow-wrap: anywhere;">${row.item}</td>
+            <td style="padding: 12px; text-align: left; word-wrap: break-word; overflow-wrap: anywhere;">${allItems}</td>
           </tr>
         `;
       });
@@ -109,7 +111,7 @@
       document.getElementById('showDataBtn').style.display = 'inline-block';
       const workbook = XLSX.read(buffer, { type: 'array' });
       const today = new Date();
-      today.setHours(0, 0, 0, 0);  // Pastikan waktu hari ini standar
+      today.setHours(0, 0, 0, 0);
       const allEvents = [];
       const peringatanHariIni = [];
       const peringatanDekat = {};
@@ -120,42 +122,42 @@
         const lokasiPT = jsonData[0]?.[0] || "Lokasi tidak diketahui";
         for (let i = 1; i < jsonData.length; i++) {
           const row = jsonData[i];
-          if (!row || !row[0]) continue;
-          const tanggalVal = row[0];  // Ambil tanggal
+          if (!row || !row[0]) continue;  // Kolom A (tanggal)
+          const tanggalVal = row[0];
           let tanggal;
           if (typeof tanggalVal === "number") {
             const dateObj = XLSX.SSF.parse_date_code(tanggalVal);
-            tanggal = new Date(dateObj.y, dateObj.m - 1, dateObj.d);  // Konversi serial date
-          } else if (typeof tanggalVal === "string") {
-            // Coba parse string tanggal, asumsi format DD/MM/YYYY untuk locale ID
+            tanggal = new Date(dateObj.y, dateObj.m - 1, dateObj.d);
+          } else {
             const parts = tanggalVal.split('/');
             if (parts.length === 3) {
               tanggal = new Date(parts[2], parts[1] - 1, parts[0]);  // DD/MM/YYYY
             } else {
-              tanggal = new Date(tanggalVal);  // Coba default
+              tanggal = new Date(tanggalVal);
             }
           }
-          if (isNaN(tanggal)) continue;  // Skip jika tanggal invalid
-          tanggal.setHours(12, 0, 0, 0);  // Standarisasi
+          if (isNaN(tanggal)) continue;
+          tanggal.setHours(12, 0, 0, 0);
           const formattedDate = tanggal.toISOString().split("T")[0];
           const diffDays = Math.floor((tanggal - today) / (1000 * 60 * 60 * 24));
+          let item = row.slice(1).filter(cell => cell != null && cell !== '').join(' - ');  // Ambil semua kolom setelah A
           let eventClass = 'safe';
           if (diffDays <= 0) eventClass = 'expired';
           else if (diffDays <= 3) eventClass = 'near-expired';
           eventsData[formattedDate] = eventsData[formattedDate] || [];
-          eventsData[formattedDate].push(row[1] || 'Item');  // Asumsi kolom 1 adalah item, sesuaikan jika perlu
-          allEvents.push({ title: row[1] || 'Item', start: formattedDate, allDay: true, classNames: [eventClass] });
-          allExcelData.push({ pt: sheetName, lokasi: lokasiPT, tanggal: formattedDate, item: row[1] || 'Item' });
+          eventsData[formattedDate].push(item);
+          allEvents.push({ title: item, start: formattedDate, allDay: true, classNames: [eventClass] });
+          allExcelData.push({ pt: sheetName, lokasi: lokasiPT, tanggal: formattedDate, item: row.slice(1) });  // Simpan semua kolom sebagai array
           if (diffDays >= 0 && diffDays <= 3) {
             if (!peringatanDekat[sheetName]) peringatanDekat[sheetName] = { jumlah: 0, tanggal: new Set(), items: [] };
             peringatanDekat[sheetName].jumlah++;
             peringatanDekat[sheetName].tanggal.add(formattedDate);
-            if (diffDays <= 1) peringatanHariIni.push({ pt: sheetName, tanggal: formattedDate, item: row[1] || 'Item' });
+            if (diffDays <= 1) peringatanHariIni.push({ pt: sheetName, tanggal: formattedDate, item });
           }
         }
       });
       calendar.removeAllEvents();
-      calendar.addEventSource(allEvents);  // Pastikan event ditambahkan
+      calendar.addEventSource(allEvents);
     }
 
     document.addEventListener('DOMContentLoaded', function () {
