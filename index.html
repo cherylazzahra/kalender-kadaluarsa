@@ -142,33 +142,10 @@
           let eventClass = 'safe';
           if (diffDays <= 0) eventClass = 'expired';
           else if (diffDays <= 3) eventClass = 'near-expired';
-        // --- 🔹 Simpan semua kolom untuk popup detail ---
-const semuaKolom = row.slice(1).map((val, idx) => `Kolom ${idx + 2}: ${val || '-'}`).join('<br>');
-
-// --- 🔹 Event pendek di kalender hanya dari kolom B (row[1]) ---
-const judulPendek = row[1] || 'Item';
-
-// Simpan data per tanggal (untuk popup saat diklik)
-eventsData[formattedDate] = eventsData[formattedDate] || [];
-eventsData[formattedDate].push(semuaKolom);
-
-// Tambahkan event ringkas ke kalender (hanya 1 item singkat)
-allEvents.push({
-  title: judulPendek,
-  start: formattedDate,
-  allDay: true,
-  classNames: [eventClass]
-});
-
-// Simpan juga ke tabel lengkap
-allExcelData.push({
-  pt: sheetName,
-  lokasi: lokasiPT,
-  tanggal: formattedDate,
-  item: semuaKolom.replace(/<br>/g, ', ')
-});
-
-
+          eventsData[formattedDate] = eventsData[formattedDate] || [];
+          eventsData[formattedDate].push(row[1] || 'Item');  // Asumsi kolom 1 adalah item, sesuaikan jika perlu
+          allEvents.push({ title: row[1] || 'Item', start: formattedDate, allDay: true, classNames: [eventClass] });
+          allExcelData.push({ pt: sheetName, lokasi: lokasiPT, tanggal: formattedDate, item: row[1] || 'Item' });
           if (diffDays >= 0 && diffDays <= 3) {
             if (!peringatanDekat[sheetName]) peringatanDekat[sheetName] = { jumlah: 0, tanggal: new Set(), items: [] };
             peringatanDekat[sheetName].jumlah++;
