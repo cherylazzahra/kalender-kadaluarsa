@@ -143,9 +143,28 @@
           if (diffDays <= 0) eventClass = 'expired';
           else if (diffDays <= 3) eventClass = 'near-expired';
           eventsData[formattedDate] = eventsData[formattedDate] || [];
-          eventsData[formattedDate].push(row[1] || 'Item');  // Asumsi kolom 1 adalah item, sesuaikan jika perlu
-          allEvents.push({ title: row[1] || 'Item', start: formattedDate, allDay: true, classNames: [eventClass] });
-          allExcelData.push({ pt: sheetName, lokasi: lokasiPT, tanggal: formattedDate, item: row[1] || 'Item' });
+          // Ambil semua kolom setelah kolom tanggal (mulai dari index 1)
+const isiKolom = row.slice(1).filter(cell => cell !== undefined && cell !== null && cell !== "").join(", ");
+
+// Jika kosong, isi dengan teks default
+const itemTeks = isiKolom || 'Data tidak tersedia';
+
+eventsData[formattedDate].push(itemTeks);
+allEvents.push({
+  title: itemTeks,
+  start: formattedDate,
+  allDay: true,
+  classNames: [eventClass]
+});
+
+// Simpan juga ke tampilan tabel
+allExcelData.push({
+  pt: sheetName,
+  lokasi: lokasiPT,
+  tanggal: formattedDate,
+  item: itemTeks
+});
+
           if (diffDays >= 0 && diffDays <= 3) {
             if (!peringatanDekat[sheetName]) peringatanDekat[sheetName] = { jumlah: 0, tanggal: new Set(), items: [] };
             peringatanDekat[sheetName].jumlah++;
