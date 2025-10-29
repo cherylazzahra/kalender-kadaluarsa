@@ -27,13 +27,15 @@
     .btn { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; }
     .btn:hover { background: #0056b3; }
     .loading { text-align: center; color: #666; }
+    .pt-btn { padding: 8px 16px; margin: 5px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    .pt-btn:hover { background: #218838; }
   </style>
 </head>
 <body>
   <h2 style="text-align:center">📅 Kalender Tanggal Kadaluarsa</h2>
   <div class="controls">
     <a href="jadwal_kalenderkui.xlsx" id="excelLink" class="btn" download>Unduh File Excel</a>
-    <button id="showDataBtn" class="btn" style="display:none;">Tampilkan Data Excel</button>
+    <button id="showDataBtn" class="btn" style="display:none;">Isi Tampilan Lengkap</button>
     <input type="file" id="fileUpload" accept=".xlsx,.xls" style="display:none;">
     <button id="uploadBtn" class="btn">Upload File Excel (Jika Fetch Gagal)</button>
   </div>
@@ -58,41 +60,82 @@
       }
     }
 
-    function showAllExcelData() {
-      if (allExcelData.length === 0) {
+    function showFullDisplay() {
+      // Ambil PT unik dari allExcelData
+      const uniquePTs = [...new Set(allExcelData.map(row => row.pt))];
+      if (uniquePTs.length === 0) {
         Swal.fire({ title: 'Data Kosong', text: 'Belum ada data.', icon: 'info', background: '#222', color: '#fff' });
         return;
       }
 
-      let html = `
-        <div style="overflow-x: auto; max-height: 70vh; overflow-y: auto; width: 100%; padding: 10px;">
-          <table style="width: 100%; border-collapse: collapse; table-layout: fixed; color: white; border: 1px solid #555; min-width: 600px;">
-            <thead>
-              <tr style="background: #333; position: sticky; top: 0;">
-                <th style="padding: 12px; text-align: left; width: 20%; min-width: 100px; line-height: 1.5;">PT</th>
-                <th style="padding: 12px; text-align: left; width: 25%; min-width: 120px; line-height: 1.5;">Lokasi</th>
-                <th style="padding: 12px; text-align: left; width: 15%; min-width: 80px; line-height: 1.5;">Tanggal</th>
-                <th style="padding: 12px; text-align: left; width: 40%; min-width: 150px; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.5;">Item</th>
-              </tr>
-            </thead>
-            <tbody>
-      `;
-
-      allExcelData.forEach(row => {
-        html += `
-          <tr style="border: 1px solid #555; min-height: 40px;">
-            <td style="padding: 12px; text-align: left; word-wrap: break-word;">${row.pt}</td>
-            <td style="padding: 12px; text-align: left; word-wrap: break-word;">${row.lokasi}</td>
-            <td style="padding: 12px; text-align: left;">${row.tanggal}</td>
-            <td style="padding: 12px; text-align: left; word-wrap: break-word; overflow-wrap: anywhere;">${row.item}</td>
-          </tr>
-        `;
+      // Buat HTML untuk tombol PT
+      let html = '<div style="text-align: center;">';
+      uniquePTs.forEach(pt => {
+        html += `<button class="pt-btn" onclick="showPTData('${pt}')">${pt}</button>`;
       });
-
-      html += `</tbody></table></div>`;
+      html += '</div>';
 
       Swal.fire({
-        title: 'Isi Data Excel',
+        title: 'Isi Tampilan Lengkap',
+        html: html,
+        icon: 'info',
+        confirmButtonText: 'Tutup',
+        background: '#222',
+        color: '#fff',
+        width: '90%',
+        showCloseButton: true
+      });
+    }
+
+    function showPTData(pt) {
+      // Filter data berdasarkan PT
+      const ptData = allExcelData.filter(row => row.pt === pt);
+      if (ptData.length === 0) {
+        Swal.fire({ title: 'Data Kosong', text: `Tidak ada data untuk PT ${pt}.`, icon: 'info', background: '#222', color: '#fff' });
+        return;
+      }
+
+      // Urutkan berdasarkan tanggal (dari terlama ke terbaru)
+      ptData.sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
+
+      // Kelompokkan berdasarkan tahun untuk tampilan yang lebih terorganisir
+      const groupedByYear = {};
+      ptData.forEach(row => {
+        const year = new Date(row.tanggal).getFullYear();
+        if (!groupedByYear[year]) groupedByYear[year] = [];
+        groupedByYear[year].push(row);
+      });
+
+      // Buat HTML tabel untuk setiap tahun
+      let html = '';
+      for (const year in groupedByYear) {
+        html += `<h3 style="color: #fff; text-align: center;">Tahun ${year}</h3>`;
+        html += `
+          <div style="overflow-x: auto; max-height: 50vh; overflow-y: auto; width: 100%; padding: 10px;">
+            <table style="width: 100%; border-collapse: collapse; table-layout: fixed; color: white; border: 1px solid #555; min-width: 600px;">
+              <thead>
+                <tr style="background: #333; position: sticky; top: 0;">
+                  <th style="padding: 12px; text-align: left; width: 25%; min-width: 120px; line-height: 1.5;">Lokasi</th>
+                  <th style="padding: 12px; text-align: left; width: 15%; min-width: 80px; line-height: 1.5;">Tanggal</th>
+                  <th style="padding: 12px; text-align: left; width: 60%; min-width: 150px; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.5;">Item</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        groupedByYear[year].forEach(row => {
+          html += `
+            <tr style="border: 1px solid #555; min-height: 40px;">
+              <td style="padding: 12px; text-align: left; word-wrap: break-word;">${row.lokasi}</td>
+              <td style="padding: 12px; text-align: left;">${row.tanggal}</td>
+              <td style="padding: 12px; text-align: left; word-wrap: break-word; overflow-wrap: anywhere;">${row.item}</td>
+            </tr>
+          `;
+        });
+        html += `</tbody></table></div><br>`;
+      }
+
+      Swal.fire({
+        title: `Data PT ${pt}`,
         html: html,
         icon: 'info',
         confirmButtonText: 'Tutup',
@@ -147,15 +190,24 @@
           allEvents.push({ title: row[1] || 'Item', start: formattedDate, allDay: true, classNames: [eventClass] });
           allExcelData.push({ pt: sheetName, lokasi: lokasiPT, tanggal: formattedDate, item: row[1] || 'Item' });
           if (diffDays >= 0 && diffDays <= 3) {
-            if (!peringatanDekat[sheetName]) peringatanDekat[sheetName] = { jumlah: 0, tanggal: new Set(), items: [] };
+            if (!peringatanDekat[sheetName]) peringatanDekat[sheetName] = { jumlah: 0, tanggal: new Set(), items: [], lokasi: lokasiPT };
             peringatanDekat[sheetName].jumlah++;
             peringatanDekat[sheetName].tanggal.add(formattedDate);
+            peringatanDekat[sheetName].items.push(row[1] || 'Item');
             if (diffDays <= 1) peringatanHariIni.push({ pt: sheetName, tanggal: formattedDate, item: row[1] || 'Item' });
           }
         }
       });
       calendar.removeAllEvents();
       calendar.addEventSource(allEvents);  // Pastikan event ditambahkan
+
+      // Tambahkan notifikasi untuk peringatan dekat kadaluarsa
+      for (const pt in peringatanDekat) {
+        const data = peringatanDekat[pt];
+        const title = "Peringatan Kadaluarsa";
+        const body = `PT: ${pt}, Total Unit: ${data.jumlah}, Lokasi: ${data.lokasi}`;
+        showSystemNotification(title, body);
+      }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -179,7 +231,7 @@
         events: []
       });
       calendar.render();
-      document.getElementById('showDataBtn').addEventListener('click', showAllExcelData);
+      document.getElementById('showDataBtn').addEventListener('click', showFullDisplay);
       document.getElementById('uploadBtn').addEventListener('click', () => document.getElementById('fileUpload').click());
       document.getElementById('fileUpload').addEventListener('change', e => {
         const file = e.target.files[0];
