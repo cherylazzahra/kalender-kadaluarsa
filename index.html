@@ -52,10 +52,19 @@
       Notification.requestPermission();
     }
 
-    function showSystemNotification(title, body) {
+    function showSystemNotification(title, body, pt) {
       if ("Notification" in window && Notification.permission === "granted") {
         const notif = new Notification(title, { body });
-        notif.onclick = () => { window.focus(); };
+        notif.onclick = () => {
+          window.focus();
+          Swal.fire({
+            title: `Peringatan untuk PT ${pt}`,
+            text: body,
+            icon: 'warning',
+            background: '#222',
+            color: '#fff'
+          });
+        };
         setTimeout(() => notif.close(), 10000);
       }
     }
@@ -206,7 +215,7 @@
         const data = peringatanDekat[pt];
         const title = "Peringatan Kadaluarsa";
         const body = `PT: ${pt}, Total Unit: ${data.jumlah}, Lokasi: ${data.lokasi}`;
-        showSystemNotification(title, body);
+        showSystemNotification(title, body, pt);
       }
     }
 
