@@ -52,13 +52,13 @@
       Notification.requestPermission();
     }
 
-    function showSystemNotification(title, body, pt) {
+    function showSystemNotification(title, body, pt, lokasi) {
       if ("Notification" in window && Notification.permission === "granted") {
         const notif = new Notification(title, { body });
         notif.onclick = () => {
           window.focus();
           Swal.fire({
-            title: `Peringatan untuk PT ${pt}`,
+            title: `Peringatan untuk Lokasi ${lokasi}`,
             text: body,
             icon: 'warning',
             background: '#222',
@@ -70,10 +70,22 @@
     }
 
     function showFullDisplay() {
-      // Ambil PT unik dari allExcelData
-      const uniquePTs = [...new Set(allExcelData.map(row => row.pt))];
+      // Dapatkan bulan dan tahun aktif dari kalender
+      const currentStart = calendar.view.currentStart;
+      const currentMonth = currentStart.getMonth();
+      const currentYear = currentStart.getFullYear();
+
+      // Filter data untuk bulan aktif
+      const filteredData = allExcelData.filter(row => {
+        const rowDate = new Date(row.tanggal);
+        return rowDate.getMonth() === currentMonth && rowDate.getFullYear() === currentYear;
+      });
+
+      // Ambil PT unik dari filteredData
+      const uniquePTs = [...new Set(filteredData.map(row => row.pt))];
+
       if (uniquePTs.length === 0) {
-        Swal.fire({ title: 'Data Kosong', text: 'Belum ada data.', icon: 'info', background: '#222', color: '#fff' });
+        Swal.fire({ title: 'Data Kosong', text: `Belum ada data untuk bulan ${currentStart.toLocaleString('id-ID', { month: 'long' })} ${currentYear}.`, icon: 'info', background: '#222', color: '#fff' });
         return;
       }
 
@@ -85,7 +97,7 @@
       html += '</div>';
 
       Swal.fire({
-        title: 'Isi Tampilan Lengkap',
+        title: `Isi Tampilan Lengkap - Bulan ${currentStart.toLocaleString('id-ID', { month: 'long' })} ${currentYear}`,
         html: html,
         icon: 'info',
         confirmButtonText: 'Tutup',
@@ -97,54 +109,49 @@
     }
 
     function showPTData(pt) {
-      // Filter data berdasarkan PT
-      const ptData = allExcelData.filter(row => row.pt === pt);
+      // Dapatkan bulan dan tahun aktif dari kalender
+      const currentStart = calendar.view.currentStart;
+      const currentMonth = currentStart.getMonth();
+      const currentYear = currentStart.getFullYear();
+
+      // Filter data berdasarkan PT dan bulan aktif
+      const ptData = allExcelData.filter(row => row.pt === pt && new Date(row.tanggal).getMonth() === currentMonth && new Date(row.tanggal).getFullYear() === currentYear);
+
       if (ptData.length === 0) {
-        Swal.fire({ title: 'Data Kosong', text: `Tidak ada data untuk PT ${pt}.`, icon: 'info', background: '#222', color: '#fff' });
+        Swal.fire({ title: 'Data Kosong', text: `Tidak ada data untuk PT ${pt} pada bulan ${currentStart.toLocaleString('id-ID', { month: 'long' })} ${currentYear}.`, icon: 'info', background: '#222', color: '#fff' });
         return;
       }
 
       // Urutkan berdasarkan tanggal (dari terlama ke terbaru)
       ptData.sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
 
-      // Kelompokkan berdasarkan tahun untuk tampilan yang lebih terorganisir
-      const groupedByYear = {};
+      // Buat HTML tabel untuk bulan aktif
+      let html = `<h3 style="color: #fff; text-align: center;">Bulan ${currentStart.toLocaleString('id-ID', { month: 'long' })} ${currentYear}</h3>`;
+      html += `
+        <div style="overflow-x: auto; max-height: 50vh; overflow-y: auto; width: 100%; padding: 10px;">
+          <table style="width: 100%; border-collapse: collapse; table-layout: fixed; color: white; border: 1px solid #555; min-width: 600px;">
+            <thead>
+              <tr style="background: #333; position: sticky; top: 0;">
+                <th style="padding: 12px; text-align: left; width: 25%; min-width: 120px; line-height: 1.5;">Lokasi</th>
+                <th style="padding: 12px; text-align: left; width: 15%; min-width: 80px; line-height: 1.5;">Tanggal</th>
+                <th style="padding: 12px; text-align: left; width: 60%; min-width: 150px; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.5;">Item</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
       ptData.forEach(row => {
-        const year = new Date(row.tanggal).getFullYear();
-        if (!groupedByYear[year]) groupedByYear[year] = [];
-        groupedByYear[year].push(row);
-      });
-
-      // Buat HTML tabel untuk setiap tahun
-      let html = '';
-      for (const year in groupedByYear) {
-        html += `<h3 style="color: #fff; text-align: center;">Tahun ${year}</h3>`;
         html += `
-          <div style="overflow-x: auto; max-height: 50vh; overflow-y: auto; width: 100%; padding: 10px;">
-            <table style="width: 100%; border-collapse: collapse; table-layout: fixed; color: white; border: 1px solid #555; min-width: 600px;">
-              <thead>
-                <tr style="background: #333; position: sticky; top: 0;">
-                  <th style="padding: 12px; text-align: left; width: 25%; min-width: 120px; line-height: 1.5;">Lokasi</th>
-                  <th style="padding: 12px; text-align: left; width: 15%; min-width: 80px; line-height: 1.5;">Tanggal</th>
-                  <th style="padding: 12px; text-align: left; width: 60%; min-width: 150px; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.5;">Item</th>
-                </tr>
-              </thead>
-              <tbody>
+          <tr style="border: 1px solid #555; min-height: 40px;">
+            <td style="padding: 12px; text-align: left; word-wrap: break-word;">${row.lokasi}</td>
+            <td style="padding: 12px; text-align: left;">${row.tanggal}</td>
+            <td style="padding: 12px; text-align: left; word-wrap: break-word; overflow-wrap: anywhere;">${row.item}</td>
+          </tr>
         `;
-        groupedByYear[year].forEach(row => {
-          html += `
-            <tr style="border: 1px solid #555; min-height: 40px;">
-              <td style="padding: 12px; text-align: left; word-wrap: break-word;">${row.lokasi}</td>
-              <td style="padding: 12px; text-align: left;">${row.tanggal}</td>
-              <td style="padding: 12px; text-align: left; word-wrap: break-word; overflow-wrap: anywhere;">${row.item}</td>
-            </tr>
-          `;
-        });
-        html += `</tbody></table></div><br>`;
-      }
+      });
+      html += `</tbody></table></div><br>`;
 
       Swal.fire({
-        title: `Data PT ${pt}`,
+        title: `Data PT ${pt} - Bulan Aktif`,
         html: html,
         icon: 'info',
         confirmButtonText: 'Tutup',
@@ -214,8 +221,8 @@
       for (const pt in peringatanDekat) {
         const data = peringatanDekat[pt];
         const title = "Peringatan Kadaluarsa";
-        const body = `PT: ${pt}, Total Unit: ${data.jumlah}, Lokasi: ${data.lokasi}`;
-        showSystemNotification(title, body, pt);
+        const body = `Lokasi: ${data.lokasi}, Total Unit: ${data.jumlah}, PT: ${pt}`;
+        showSystemNotification(title, body, pt, data.lokasi);
       }
     }
 
