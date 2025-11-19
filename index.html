@@ -71,13 +71,12 @@
 
   function processExcelData(buffer) {
 
-    /* ============================================================
-       🔥 FIX PENTING → HAPUS DATA LAMA SEBELUM MEMPROSES DATA BARU
-    ============================================================ */
+    /* ================================
+       FIX → hapus data lama
+    ================================*/
     for (let key in eventsData) delete eventsData[key];
     allExcelData.length = 0;
 
-    // Hapus seluruh event lama di kalender
     if (calendar) calendar.removeAllEvents();
 
     document.getElementById('loading').style.display = 'none';
@@ -119,13 +118,12 @@
         const formattedDate = tanggal.toISOString().split("T")[0];
 
         const diffDays = Math.floor((tanggal - today) / 86400000);
-        let eventClass = diffDays <= 0 ? 'expired' : diffDays <= 3 ? 'near-expired' : 'safe';
+        let eventClass = diffDays <= 0 ? 'expired' :
+                         diffDays <= 3 ? 'near-expired' : 'safe';
 
-        // Simpan event untuk popup pada tanggal
         eventsData[formattedDate] = eventsData[formattedDate] || [];
         eventsData[formattedDate].push(row[1] || 'Item');
 
-        // Simpan event untuk kalender
         allEvents.push({
           title: row[1] || 'Item',
           start: formattedDate,
@@ -133,7 +131,6 @@
           classNames: [eventClass]
         });
 
-        // Simpan semua data untuk tampilan lengkap
         allExcelData.push({
           pt: sheetName,
           lokasi: lokasiPT,
@@ -141,7 +138,6 @@
           item: row[1] || 'Item'
         });
 
-        // Peringatan
         if (diffDays >= 0 && diffDays <= 3) {
           if (!peringatanDekat[sheetName]) {
             peringatanDekat[sheetName] = { jumlah: 0, tanggal: new Set(), items: [], lokasi: lokasiPT };
@@ -153,21 +149,126 @@
       }
     });
 
-    // Tambah event baru
     calendar.addEventSource(allEvents);
 
-    // Notifikasi
     for (const pt in peringatanDekat) {
       const d = peringatanDekat[pt];
-      showSystemNotification("Peringatan Kadaluarsa",
+      showSystemNotification(
+        "Peringatan Kadaluarsa",
         `Lokasi: ${d.lokasi}, Total Unit: ${d.jumlah}, PT: ${pt}`,
-        pt, d.lokasi);
+        pt, d.lokasi
+      );
     }
   }
 
-  // TAMPILAN LENGKAP (tetap seperti kode kamu)
-  function showFullDisplay() { /* ... tidak diubah ... */ }
-  function showPTData(pt) { /* ... tidak diubah ... */ }
+
+  /* ============================================================
+      🎉 INI BAGIAN YANG SUDAH DIGABUNG (VERSI BENAR)
+  ============================================================ */
+
+  function showFullDisplay() {
+    const currentStart = calendar.view.currentStart;
+    const currentMonth = currentStart.getMonth();
+    const currentYear = currentStart.getFullYear();
+
+    const filteredData = allExcelData.filter(row => {
+      const rowDate = new Date(row.tanggal);
+      return rowDate.getMonth() === currentMonth && rowDate.getFullYear() === currentYear;
+    });
+
+    const uniquePTs = [...new Set(filteredData.map(row => row.pt))];
+
+    if (uniquePTs.length === 0) {
+      Swal.fire({
+        title: 'Data Kosong',
+        text: `Belum ada data untuk bulan ${currentStart.toLocaleString('id-ID', { month: 'long' })} ${currentYear}.`,
+        icon: 'info',
+        background: '#222',
+        color: '#fff'
+      });
+      return;
+    }
+
+    let html = '<div style="text-align: center;">';
+    uniquePTs.forEach(pt => {
+      html += `<button class="pt-btn" onclick="showPTData('${pt}')">${pt}</button>`;
+    });
+    html += '</div>';
+
+    Swal.fire({
+      title: `Isi Tampilan Lengkap - Bulan ${currentStart.toLocaleString('id-ID', { month: 'long' })} ${currentYear}`,
+      html: html,
+      icon: 'info',
+      confirmButtonText: 'Tutup',
+      background: '#222',
+      color: '#fff',
+      width: '90%',
+      showCloseButton: true
+    });
+  }
+
+  function showPTData(pt) {
+    const currentStart = calendar.view.currentStart;
+    const currentMonth = currentStart.getMonth();
+    const currentYear = currentStart.getFullYear();
+
+    const ptData = allExcelData.filter(row =>
+      row.pt === pt &&
+      new Date(row.tanggal).getMonth() === currentMonth &&
+      new Date(row.tanggal).getFullYear() === currentYear
+    );
+
+    if (ptData.length === 0) {
+      Swal.fire({
+        title: 'Data Kosong',
+        text: `Tidak ada data untuk PT ${pt} pada bulan ini.`,
+        icon: 'info',
+        background: '#222',
+        color: '#fff'
+      });
+      return;
+    }
+
+    ptData.sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
+
+    let html = `
+      <div style="overflow-x: auto; max-height: 50vh; overflow-y: auto; width: 100%; padding: 10px;">
+        <table style="width: 100%; border-collapse: collapse; color: white; border: 1px solid #555;">
+          <thead>
+            <tr style="background: #333;">
+              <th style="padding: 8px;">Lokasi</th>
+              <th style="padding: 8px;">Tanggal</th>
+              <th style="padding: 8px;">Item</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    ptData.forEach(row => {
+      html += `
+        <tr style="border: 1px solid #555;">
+          <td style="padding: 8px;">${row.lokasi}</td>
+          <td style="padding: 8px;">${row.tanggal}</td>
+          <td style="padding: 8px;">${row.item}</td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table></div>`;
+
+    Swal.fire({
+      title: `Data PT ${pt}`,
+      html: html,
+      icon: 'info',
+      confirmButtonText: 'Tutup',
+      background: '#222',
+      color: '#fff',
+      width: '90%',
+      showCloseButton: true
+    });
+  }
+
+  /* ============================================================ */
 
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -192,7 +293,6 @@
 
     calendar.render();
 
-    // Upload manual
     document.getElementById('uploadBtn').addEventListener('click', () =>
       document.getElementById('fileUpload').click()
     );
@@ -206,12 +306,8 @@
       }
     });
 
-    // Loading fetch
     document.getElementById('loading').style.display = 'block';
 
-    // =====================================================
-    // 🔥 FIX → Anti cache untuk GitHub RAW
-    // =====================================================
     fetch(excelUrl + "?v=" + Date.now())
       .then(res => res.arrayBuffer())
       .then(buffer => processExcelData(buffer))
@@ -227,6 +323,7 @@
       });
   });
 </script>
+
 
 </body>
 </html>
