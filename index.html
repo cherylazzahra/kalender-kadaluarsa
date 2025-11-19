@@ -6,7 +6,7 @@
   <title>Kalender Kadaluarsa</title>
 
   <!-- FullCalendar -->
-  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
 
   <!-- SheetJS -->
@@ -202,7 +202,7 @@
           if (diffDays <= 0) eventClass = 'expired';
           else if (diffDays <= 3) eventClass = 'near-expired';
           eventsData[formattedDate] = eventsData[formattedDate] || [];
-          eventsData[formattedDate].push(row[1] || 'Item');  // Asumsi kolom 1 adalah item, sesuaikan jika perlu
+          eventsData[formattedDate].push(row[1] || 'tidak ada nama item');  // Asumsi kolom 1 adalah item, sesuaikan jika perlu
           allEvents.push({ title: row[1] || 'Item', start: formattedDate, allDay: true, classNames: [eventClass] });
           allExcelData.push({ pt: sheetName, lokasi: lokasiPT, tanggal: formattedDate, item: row[1] || 'Item' });
           if (diffDays >= 0 && diffDays <= 3) {
